@@ -49,3 +49,67 @@ func TestWriteConfigFileKeyWithSpaces(t *testing.T) {
 		t.Errorf("round trip through git config changed the value:\n got %q\nwant %q", got, want)
 	}
 }
+
+func TestExpectedFor(t *testing.T) {
+	links := []Link{
+		{Dir: "C:/code/", File: "a.gitconfig"},
+		{Dir: "C:/code/work/", File: "b.gitconfig"},
+	}
+	if l, ok := ExpectedFor(`c:\Code\Work\api`, links); !ok || l.File != "b.gitconfig" {
+		t.Errorf("most specific rule should win, got %+v %v", l, ok)
+	}
+	if l, ok := ExpectedFor("C:/code/other", links); !ok || l.File != "a.gitconfig" {
+		t.Errorf("got %+v %v", l, ok)
+	}
+	if _, ok := ExpectedFor("C:/codex/app", links); ok {
+		t.Error("C:/codex must not match the C:/code/ rule")
+	}
+}
+
+func TestHookScriptChainsRepoHook(t *testing.T) {
+	pc := hookScript("pre-commit", `C:\bin\gitswitch.exe`)
+	if !strings.Contains(pc, `"C:/bin/gitswitch.exe" guard check || exit 1`) {
+		t.Error("pre-commit must run the guard")
+	}
+	if !strings.Contains(pc, "--git-common-dir") || strings.Contains(pc, "--git-path") {
+		t.Error("pre-commit must chain to the repo's own hook")
+	}
+	if strings.Contains(hookScript("commit-msg", "x"), "guard check") {
+		t.Error("only pre-commit runs the guard")
+	}
+}
+
+func TestCredentialKeyUsesHost(t *testing.T) {
+	if got := credKey("gitlab.com"); got != "credential.https://gitlab.com.username" {
+		t.Error(got)
+	}
+	dir := t.TempDir()
+	cfg := dir + "/p.gitconfig"
+	p := profile.Profile{Name: "w", GitName: "N", Email: "e@x.com", GitHub: "me", Host: "git.corp.example"}
+	if err := WriteConfigFile(cfg, p); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := exec.Command("git", "config", "--file", cfg, credKey("git.corp.example")).Output()
+	if strings.TrimSpace(string(out)) != "me" {
+		t.Errorf("host-specific username not written, got %q", out)
+	}
+}
+
+func TestGreetingParsing(t *testing.T) {
+	for in, want := range map[string]string{
+		"Hi octocat! You've successfully authenticated, but GitHub does not provide shell access.": "octocat",
+		"Welcome to GitLab, @tanuki!": "tanuki",
+		"authenticated via ssh key.\nYou can use git to connect to Bitbucket. Shell access is disabled\nlogged in as dev-user.": "dev-user",
+	} {
+		m := helloRe.FindStringSubmatch(in)
+		got := ""
+		for _, g := range m[1:] {
+			if g != "" {
+				got = g
+			}
+		}
+		if got != want {
+			t.Errorf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}

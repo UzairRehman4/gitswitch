@@ -48,7 +48,7 @@ func TestCursorBounds(t *testing.T) {
 func TestEmptyViewHintsAdd(t *testing.T) {
 	m := testModel()
 	m.store = &profile.Store{}
-	if !strings.Contains(m.View(), "gitswitch add") {
-		t.Error("empty state should tell the user to run `gitswitch add`")
+	if !strings.Contains(m.View(), "to create one") {
+		t.Error("empty state should tell the user how to create one")
 	}
 }

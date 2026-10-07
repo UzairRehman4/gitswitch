@@ -25,7 +25,8 @@ const (
 	Local  Scope = "--local"
 )
 
-const githubCred = "credential.https://github.com.username"
+// credKey is the git config key holding the HTTPS username hint for a host.
+func credKey(host string) string { return "credential.https://" + host + ".username" }
 
 func git(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
@@ -91,12 +92,13 @@ func Apply(p profile.Profile, s Scope, all []profile.Profile) error {
 		git("config", string(s), "--unset", "core.sshCommand")
 	}
 
+	key := credKey(p.Hostname())
 	if p.GitHub != "" {
-		if _, err := git("config", string(s), githubCred, p.GitHub); err != nil {
+		if _, err := git("config", string(s), key, p.GitHub); err != nil {
 			return err
 		}
-	} else if s == Global && ownsGitHubUser(GetScoped(s, githubCred), all) {
-		git("config", string(s), "--unset", githubCred)
+	} else if s == Global && ownsUsername(GetScoped(s, key), p.Hostname(), all) {
+		git("config", string(s), "--unset", key)
 	}
 	return nil
 }
@@ -110,9 +112,9 @@ func ownsSSHCommand(cur string, all []profile.Profile) bool {
 	return false
 }
 
-func ownsGitHubUser(cur string, all []profile.Profile) bool {
+func ownsUsername(cur, host string, all []profile.Profile) bool {
 	for _, p := range all {
-		if p.GitHub != "" && p.GitHub == cur {
+		if p.GitHub != "" && p.Hostname() == host && p.GitHub == cur {
 			return true
 		}
 	}
@@ -128,7 +130,7 @@ func WriteConfigFile(path string, p profile.Profile) error {
 		fmt.Fprintf(&b, "[core]\n\tsshCommand = \"%s\"\n", quoteValue(SSHCommand(p.KeyPath)))
 	}
 	if p.GitHub != "" {
-		fmt.Fprintf(&b, "[credential \"https://github.com\"]\n\tusername = %s\n", p.GitHub)
+		fmt.Fprintf(&b, "[credential \"https://%s\"]\n\tusername = %s\n", p.Hostname(), p.GitHub)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -252,10 +254,11 @@ func PublicKey(path string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
-var helloRe = regexp.MustCompile(`Hi ([^!]+)!`)
+// Greetings from GitHub, GitLab and Bitbucket after a successful `ssh -T`.
+var helloRe = regexp.MustCompile(`Hi ([^!]+)!|Welcome to GitLab, @([^!]+)!|logged in as ([^.\s]+)`)
 
-// TestConnection authenticates to GitHub with the profile's key and returns
-// the GitHub username it resolves to.
+// TestConnection authenticates to the profile's host with its key and returns
+// the account username it resolves to.
 func TestConnection(p profile.Profile) (string, error) {
 	if p.KeyPath == "" {
 		return "", errors.New("profile has no SSH key")
@@ -266,17 +269,21 @@ func TestConnection(p profile.Profile) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ssh", "-i", p.KeyPath, "-o", "IdentitiesOnly=yes",
-		"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@github.com")
+		"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@"+p.Hostname())
 	out, _ := cmd.CombinedOutput() // GitHub exits 1 even on success
 	if m := helloRe.FindStringSubmatch(string(out)); m != nil {
-		return m[1], nil
+		for _, g := range m[1:] {
+			if g != "" {
+				return g, nil
+			}
+		}
 	}
 	if ctx.Err() != nil {
-		return "", errors.New("timed out reaching github.com")
+		return "", fmt.Errorf("timed out reaching %s", p.Hostname())
 	}
 	msg := strings.TrimSpace(string(out))
 	if strings.Contains(msg, "Permission denied") {
-		return "", errors.New("GitHub rejected this key. Add the public key at https://github.com/settings/ssh/new")
+		return "", fmt.Errorf("%s rejected this key. Add the public key to the account's SSH keys (GitHub: https://github.com/settings/ssh/new)", p.Hostname())
 	}
 	return "", fmt.Errorf("unexpected ssh output: %s", msg)
 }

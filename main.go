@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/uzairrehman4/gitswitch/internal/gitx"
+	"github.com/uzairrehman4/gitswitch/internal/ops"
 	"github.com/uzairrehman4/gitswitch/internal/profile"
 	"github.com/uzairrehman4/gitswitch/internal/tui"
 )
@@ -21,6 +22,8 @@ const usage = `gitswitch - switch between multiple GitHub accounts
 Usage:
   gitswitch                     open the interactive picker
   gitswitch add [flags]         create a profile (and an SSH key for it)
+  gitswitch edit <name> [flags] change a profile's email, username, host or key
+  gitswitch import [label]      save the current global git identity as a profile
   gitswitch list                list profiles
   gitswitch status              show the identity git will use right here
   gitswitch use <name> [--repo] switch globally, or only for the current repo
@@ -28,6 +31,8 @@ Usage:
   gitswitch unlink [dir]        remove a folder rule
   gitswitch test <name>         check that the profile's key reaches GitHub
   gitswitch remove <name>       delete a profile (the SSH key file is kept)
+  gitswitch guard install       block commits made with the wrong identity
+  gitswitch guard uninstall     remove the commit guard
   gitswitch doctor              look for common misconfigurations
   gitswitch version
 `
@@ -54,6 +59,12 @@ func run(args []string) error {
 	switch cmd {
 	case "add":
 		return cmdAdd(store, rest)
+	case "edit":
+		return cmdEdit(store, rest)
+	case "import":
+		return cmdImport(store, rest)
+	case "guard":
+		return cmdGuard(store, rest)
 	case "list", "ls":
 		return cmdList(store)
 	case "status", "st":
@@ -105,12 +116,29 @@ func prompt(r *bufio.Reader, label, def string) string {
 	return def
 }
 
+// parseInterleaved parses flags that may appear before or after positionals.
+func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
+	var pos []string
+	for len(args) > 0 {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		args = fs.Args()
+		if len(args) > 0 {
+			pos = append(pos, args[0])
+			args = args[1:]
+		}
+	}
+	return pos, nil
+}
+
 func cmdAdd(store *profile.Store, args []string) error {
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	name := fs.String("name", "", "profile label, e.g. work")
 	gitName := fs.String("git-name", "", "git user.name")
 	email := fs.String("email", "", "git user.email")
-	gh := fs.String("github", "", "GitHub username")
+	gh := fs.String("github", "", "account username on the host")
+	host := fs.String("host", "", "git host (default github.com; also gitlab.com, GitHub Enterprise, ...)")
 	key := fs.String("key", "", "use an existing SSH private key instead of generating one")
 	noKey := fs.Bool("no-key", false, "do not use an SSH key (HTTPS only)")
 	if err := fs.Parse(args); err != nil {
@@ -128,62 +156,152 @@ func cmdAdd(store *profile.Store, args []string) error {
 		*email = prompt(in, "Git email", g.Email)
 	}
 	if *gh == "" {
-		*gh = prompt(in, "GitHub username (optional)", "")
+		*gh = prompt(in, "Account username (optional)", "")
 	}
 
-	p := profile.Profile{Name: *name, GitName: *gitName, Email: *email, GitHub: *gh}
-	if err := profile.Validate(p); err != nil {
+	p := profile.Profile{Name: *name, GitName: *gitName, Email: *email, GitHub: *gh, Host: *host, KeyPath: *key}
+	res, err := ops.Add(store, p, !*noKey)
+	if err != nil {
 		return err
 	}
-	if _, exists := store.Get(p.Name); exists {
-		return fmt.Errorf("profile %q already exists", p.Name)
-	}
-
-	generated := false
-	switch {
-	case *key != "":
-		p.KeyPath = *key
-		if _, err := os.Stat(p.KeyPath); err != nil {
-			return fmt.Errorf("key not found: %s", p.KeyPath)
-		}
-	case !*noKey:
-		path, err := gitx.DefaultKeyPath(p.Name)
-		if err != nil {
-			return err
-		}
-		if generated, err = gitx.GenerateKey(path, p.Email); err != nil {
-			return err
-		}
-		p.KeyPath = path
-	}
-
-	if err := store.Add(p); err != nil {
-		return err
-	}
-	if err := store.Save(); err != nil {
-		return err
-	}
-	if err := gitx.WriteConfigFile(store.ConfigFile(p), p); err != nil {
-		return err
-	}
+	p = res.Profile
 	fmt.Printf("Added profile %q.\n", p.Name)
 
-	if p.KeyPath != "" {
-		pub, err := gitx.PublicKey(p.KeyPath)
-		if err != nil {
-			return err
-		}
-		if generated {
-			fmt.Println("\nGenerated a new SSH key. Add this public key to GitHub")
+	if res.PublicKey != "" {
+		if res.Generated {
+			fmt.Println("\nGenerated a new SSH key. Add this public key to the account's SSH keys")
 		} else {
-			fmt.Println("\nUsing the existing SSH key. Make sure this public key is on GitHub")
+			fmt.Println("\nUsing an existing SSH key. Make sure this public key is on the account")
 		}
-		fmt.Print("(sign in as the account this profile is for): https://github.com/settings/ssh/new\n\n")
-		fmt.Println(pub)
-		if gitx.CopyToClipboard(pub) {
+		fmt.Printf("(sign in as the account this profile is for; GitHub: https://github.com/settings/ssh/new)\n\n%s\n", res.PublicKey)
+		if gitx.CopyToClipboard(res.PublicKey) {
 			fmt.Println("\n(copied to your clipboard)")
 		}
 		fmt.Printf("\nThen verify with: gitswitch test %s\n", p.Name)
+	}
+	return nil
+}
+
+func cmdEdit(store *profile.Store, args []string) error {
+	fs := flag.NewFlagSet("edit", flag.ContinueOnError)
+	gitName := fs.String("git-name", "", "new git user.name")
+	email := fs.String("email", "", "new git user.email")
+	gh := fs.String("github", "", "new account username")
+	host := fs.String("host", "", "new git host")
+	key := fs.String("key", "", "new SSH private key path")
+	noKey := fs.Bool("no-key", false, "stop using an SSH key")
+	pos, err := parseInterleaved(fs, args)
+	if err != nil {
+		return err
+	}
+	p, err := need(store, pos)
+	if err != nil {
+		return err
+	}
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "git-name":
+			p.GitName = *gitName
+		case "email":
+			p.Email = *email
+		case "github":
+			p.GitHub = *gh
+		case "host":
+			p.Host = *host
+		case "key":
+			p.KeyPath = *key
+		case "no-key":
+			if *noKey {
+				p.KeyPath = ""
+			}
+		}
+	})
+	if err := ops.Edit(store, p.Name, p); err != nil {
+		return err
+	}
+	fmt.Printf("Updated profile %q.\n", p.Name)
+	return nil
+}
+
+func cmdImport(store *profile.Store, args []string) error {
+	label := "default"
+	if len(args) > 0 {
+		label = args[0]
+	}
+	p, err := ops.ImportGlobal(store, label)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Saved the current global identity as profile %q (%s <%s>).\n", p.Name, p.GitName, p.Email)
+	fmt.Printf("It has no SSH key yet; attach one with: gitswitch edit %s --key PATH\n", p.Name)
+	return nil
+}
+
+func hooksDir(store *profile.Store) string {
+	return filepath.Join(filepath.Dir(store.ProfilesDir()), "hooks")
+}
+
+func cmdGuard(store *profile.Store, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: gitswitch guard install|uninstall|check")
+	}
+	dir := hooksDir(store)
+	switch args[0] {
+	case "install":
+		force := len(args) > 1 && args[1] == "--force"
+		if cur := gitx.HooksPath(); cur != "" && !gitx.SamePath(cur, dir) && !force {
+			return fmt.Errorf("core.hooksPath is already set to %s; re-run with --force to replace it", cur)
+		}
+		exe, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		if err := gitx.InstallHooks(dir, exe); err != nil {
+			return err
+		}
+		if err := gitx.SetHooksPath(dir); err != nil {
+			return err
+		}
+		fmt.Println("Guard installed. Commits are blocked when the identity does not match the folder rule.")
+		fmt.Println("Repo hooks keep working. Bypass once with GITSWITCH_SKIP_GUARD=1 or git commit --no-verify.")
+		return nil
+	case "uninstall":
+		if cur := gitx.HooksPath(); cur != "" && gitx.SamePath(cur, dir) {
+			if err := gitx.UnsetHooksPath(); err != nil {
+				return err
+			}
+		}
+		os.RemoveAll(dir)
+		fmt.Println("Guard removed.")
+		return nil
+	case "check":
+		return guardCheck(store)
+	}
+	return fmt.Errorf("unknown guard command %q", args[0])
+}
+
+// guardCheck runs from the pre-commit hook.
+func guardCheck(store *profile.Store) error {
+	if os.Getenv("GITSWITCH_SKIP_GUARD") != "" {
+		return nil
+	}
+	e := gitx.Effective()
+	if e.Name == "" || e.Email == "" {
+		return fmt.Errorf("no git identity is set here; run `gitswitch use <name> --repo`")
+	}
+	root, err := gitx.RepoRoot()
+	if err != nil {
+		return nil
+	}
+	rule, ok := gitx.ExpectedFor(root, gitx.Links(store.ProfilesDir()))
+	if !ok {
+		return nil
+	}
+	for _, p := range store.Profiles {
+		if strings.EqualFold(filepath.ToSlash(store.ConfigFile(p)), rule.File) && !strings.EqualFold(p.Email, e.Email) {
+			return fmt.Errorf("this folder is linked to profile %q (%s) but you are about to commit as %s.\nFix it with `gitswitch use %s --repo`, or bypass with GITSWITCH_SKIP_GUARD=1",
+				p.Name, p.Email, e.Email, p.Name)
+		}
 	}
 	return nil
 }
@@ -231,17 +349,9 @@ func cmdStatus(store *profile.Store) error {
 func cmdUse(store *profile.Store, args []string) error {
 	fs := flag.NewFlagSet("use", flag.ContinueOnError)
 	repo := fs.Bool("repo", false, "apply only to the current repository")
-	// Accept the flag before or after the name.
-	var names []string
-	for len(args) > 0 {
-		if err := fs.Parse(args); err != nil {
-			return err
-		}
-		args = fs.Args()
-		if len(args) > 0 {
-			names = append(names, args[0])
-			args = args[1:]
-		}
+	names, err := parseInterleaved(fs, args)
+	if err != nil {
+		return err
 	}
 	p, err := need(store, names)
 	if err != nil {
@@ -306,9 +416,9 @@ func cmdTest(store *profile.Store, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("OK: %s authenticates to GitHub as @%s\n", p.Name, user)
+	fmt.Printf("OK: %s authenticates to %s as @%s\n", p.Name, p.Hostname(), user)
 	if p.GitHub != "" && !strings.EqualFold(p.GitHub, user) {
-		fmt.Printf("warning: profile says GitHub user %q but the key belongs to @%s\n", p.GitHub, user)
+		fmt.Printf("warning: profile says user %q but the key belongs to @%s\n", p.GitHub, user)
 	}
 	return nil
 }
@@ -318,12 +428,9 @@ func cmdRemove(store *profile.Store, args []string) error {
 	if err != nil {
 		return err
 	}
-	gitx.UnlinkProfile(store.ProfilesDir(), store.ConfigFile(p))
-	store.Remove(p.Name)
-	if err := store.Save(); err != nil {
+	if err := ops.Remove(store, p.Name); err != nil {
 		return err
 	}
-	os.Remove(store.ConfigFile(p))
 	fmt.Printf("Removed profile %q. Its SSH key file was left in place.\n", p.Name)
 	return nil
 }
@@ -373,6 +480,11 @@ func cmdDoctor(store *profile.Store) error {
 				warn("remote is HTTPS, so the SSH key is unused; switch with `git remote set-url origin git@github.com:OWNER/REPO.git`")
 			}
 		}
+	}
+	if dir := filepath.Join(filepath.Dir(store.ProfilesDir()), "hooks"); gitx.HooksPath() != "" && gitx.SamePath(gitx.HooksPath(), dir) {
+		ok("commit guard is installed")
+	} else {
+		warn("commit guard not installed (`gitswitch guard install` blocks commits with the wrong identity)")
 	}
 	if problems > 0 {
 		return fmt.Errorf("%d problem(s) found", problems)

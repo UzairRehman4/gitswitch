@@ -17,9 +17,23 @@ type Profile struct {
 	Name    string `json:"name"`               // short label, e.g. "work"
 	GitName string `json:"git_name"`           // user.name
 	Email   string `json:"email"`              // user.email
-	GitHub  string `json:"github,omitempty"`   // GitHub username (HTTPS credential hint)
+	GitHub  string `json:"github,omitempty"`   // account username on Host (HTTPS credential hint)
+	Host    string `json:"host,omitempty"`     // git host; empty means github.com
 	KeyPath string `json:"key_path,omitempty"` // SSH private key for this identity
 }
+
+// DefaultHost is used when a profile has no Host.
+const DefaultHost = "github.com"
+
+// Hostname returns the profile's git host, defaulting to github.com.
+func (p Profile) Hostname() string {
+	if p.Host == "" {
+		return DefaultHost
+	}
+	return p.Host
+}
+
+var hostRe = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
 
@@ -97,6 +111,9 @@ func Validate(p Profile) error {
 	if strings.TrimSpace(p.GitName) == "" {
 		return errors.New("git user name is required")
 	}
+	if p.Host != "" && !hostRe.MatchString(p.Host) {
+		return fmt.Errorf("host %q does not look like a hostname", p.Host)
+	}
 	if !strings.Contains(p.Email, "@") {
 		return fmt.Errorf("email %q does not look valid", p.Email)
 	}
@@ -113,6 +130,17 @@ func (s *Store) Add(p Profile) error {
 	}
 	s.Profiles = append(s.Profiles, p)
 	return nil
+}
+
+// Replace overwrites the stored profile with the same name.
+func (s *Store) Replace(p Profile) bool {
+	for i, q := range s.Profiles {
+		if strings.EqualFold(q.Name, p.Name) {
+			s.Profiles[i] = p
+			return true
+		}
+	}
+	return false
 }
 
 // Remove deletes a profile by name.
