@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Fix: folder rules (and the commit guard) now work when the folder is reached through an alias: Windows 8.3 short names, macOS `/var` -> `/private/var`, or a symlinked directory. Rules are stored with the real path.
+- CI now runs the full test suite on Linux, macOS and Windows.
+
 ## 0.1.0
 
 First release.
