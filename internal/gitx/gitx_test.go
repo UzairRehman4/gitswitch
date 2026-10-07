@@ -12,7 +12,7 @@ func TestParseLinks(t *testing.T) {
 	out := "includeif.gitdir/i:C:/Users/me/work/.path C:/Users/me/AppData/Roaming/gitswitch/profiles/work.gitconfig\n" +
 		"includeif.gitdir:~/other/.path ~/somebody-elses.gitconfig\n" +
 		"includeif.gitdir/i:C:/Users/me/oss/.path c:/users/me/appdata/roaming/gitswitch/profiles/oss.gitconfig"
-	links := parseLinks(out, `C:\Users\me\AppData\Roaming\gitswitch\profiles`)
+	links := parseLinks(out, "C:/Users/me/AppData/Roaming/gitswitch/profiles")
 	if len(links) != 2 {
 		t.Fatalf("want 2 gitswitch links, got %d: %+v", len(links), links)
 	}
@@ -22,14 +22,14 @@ func TestParseLinks(t *testing.T) {
 }
 
 func TestLinkKey(t *testing.T) {
-	if got := linkKey(`C:\Users\me\work`); got != "includeIf.gitdir/i:C:/Users/me/work/.path" {
+	if got := linkKey("C:/Users/me/work"); got != "includeIf.gitdir/i:C:/Users/me/work/.path" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestSSHCommand(t *testing.T) {
 	want := `ssh -i "C:/Users/me/.ssh/k" -o IdentitiesOnly=yes`
-	if got := SSHCommand(`C:\Users\me\.ssh\k`); got != want && got != `ssh -i "C:\Users\me\.ssh\k" -o IdentitiesOnly=yes` {
+	if got := SSHCommand("C:/Users/me/.ssh/k"); got != want {
 		t.Errorf("got %q", got)
 	}
 }
@@ -55,7 +55,7 @@ func TestExpectedFor(t *testing.T) {
 		{Dir: "C:/code/", File: "a.gitconfig"},
 		{Dir: "C:/code/work/", File: "b.gitconfig"},
 	}
-	if l, ok := ExpectedFor(`c:\Code\Work\api`, links); !ok || l.File != "b.gitconfig" {
+	if l, ok := ExpectedFor("c:/Code/Work/api", links); !ok || l.File != "b.gitconfig" {
 		t.Errorf("most specific rule should win, got %+v %v", l, ok)
 	}
 	if l, ok := ExpectedFor("C:/code/other", links); !ok || l.File != "a.gitconfig" {
@@ -67,7 +67,7 @@ func TestExpectedFor(t *testing.T) {
 }
 
 func TestHookScriptChainsRepoHook(t *testing.T) {
-	pc := hookScript("pre-commit", `C:\bin\gitswitch.exe`)
+	pc := hookScript("pre-commit", "C:/bin/gitswitch.exe")
 	if !strings.Contains(pc, `"C:/bin/gitswitch.exe" guard check || exit 1`) {
 		t.Error("pre-commit must run the guard")
 	}
