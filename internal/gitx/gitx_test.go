@@ -1,7 +1,9 @@
 package gitx
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -111,5 +113,39 @@ func TestGreetingParsing(t *testing.T) {
 		if got != want {
 			t.Errorf("%q -> %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestLinkDirStoresRealPath(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real")
+	alias := filepath.Join(root, "alias")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, alias); err != nil {
+		t.Skipf("cannot create symlinks here: %v", err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(root, "gitconfig"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	profDir := filepath.Join(root, "profiles")
+	cfg := filepath.Join(profDir, "p.gitconfig")
+
+	if err := LinkDir(alias, cfg); err != nil {
+		t.Fatal(err)
+	}
+	links := Links(profDir)
+	if len(links) != 1 {
+		t.Fatalf("want 1 link, got %+v", links)
+	}
+	want, _ := filepath.EvalSymlinks(real)
+	if !SamePath(links[0].Dir, want) {
+		t.Errorf("rule stored for %q, want the real path %q", links[0].Dir, want)
+	}
+	if err := UnlinkDir(alias); err != nil {
+		t.Errorf("unlinking through the alias should work: %v", err)
+	}
+	if len(Links(profDir)) != 0 {
+		t.Error("link still present after unlink")
 	}
 }

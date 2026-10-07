@@ -156,26 +156,43 @@ func linkKey(dir string) string {
 	return "includeIf.gitdir/i:" + d + ".path"
 }
 
+// resolveDir returns the absolute, symlink-free path of dir. Git reports real
+// paths (so does `git rev-parse --show-toplevel`), and rules written with an
+// alias such as a Windows 8.3 short name or macOS /var -> /private/var would
+// never match.
+func resolveDir(dir string) (abs, real string, err error) {
+	if abs, err = filepath.Abs(dir); err != nil {
+		return "", "", err
+	}
+	real = abs
+	if r, e := filepath.EvalSymlinks(abs); e == nil {
+		real = r
+	}
+	return abs, real, nil
+}
+
 // LinkDir makes every repo under dir use the profile's config file.
 func LinkDir(dir, configFile string) error {
-	abs, err := filepath.Abs(dir)
+	abs, real, err := resolveDir(dir)
 	if err != nil {
 		return err
 	}
-	if st, err := os.Stat(abs); err != nil || !st.IsDir() {
+	if st, err := os.Stat(real); err != nil || !st.IsDir() {
 		return fmt.Errorf("%s is not a directory", abs)
 	}
-	_, err = git("config", "--global", linkKey(abs), slash(configFile))
+	_, err = git("config", "--global", linkKey(real), slash(configFile))
 	return err
 }
 
 // UnlinkDir removes the folder rule for dir.
 func UnlinkDir(dir string) error {
-	abs, err := filepath.Abs(dir)
+	abs, real, err := resolveDir(dir)
 	if err != nil {
 		return err
 	}
-	_, err = git("config", "--global", "--unset", linkKey(abs))
+	if _, err = git("config", "--global", "--unset", linkKey(real)); err != nil && abs != real {
+		_, err = git("config", "--global", "--unset", linkKey(abs)) // rule written by an older version
+	}
 	return err
 }
 
