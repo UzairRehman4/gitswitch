@@ -28,3 +28,11 @@ go test ./...
 | `internal/gitx` | Everything that runs `git` or `ssh`: applying identities, folder rules, hooks, key tests |
 | `internal/ops` | Add/edit/remove/import logic shared by the CLI and the picker |
 | `internal/tui` | The interactive picker |
+
+## Regenerating the README screenshot
+
+`docs/picker.svg` is rendered from the picker's real output with sample data:
+
+```
+go test -tags docs -run TestGenerateDocs ./internal/tui
+```

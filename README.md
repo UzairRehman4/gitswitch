@@ -4,27 +4,7 @@ Switch between multiple GitHub accounts without thinking about it.
 
 Run `gitswitch` and pick an account from a visual list, or let folder rules do it for you: everything under `~/work` commits as your work account, everything under `~/personal` as your personal one, each with the right SSH key. A commit guard stops the one mistake that is hard to undo: committing with the wrong identity.
 
-```
-gitswitch  pick the account to use
-
-global    Me Personal <me@gmail.com>
-here      Me W <me@work.com>  C:\code\work\api
-
-╭──────────────────────────────────────────────────────────────╮
-│ ○ personal                                                   │
-│ Me Personal <me@gmail.com>                                   │
-│ github.com/meperso                                           │
-╰──────────────────────────────────────────────────────────────╯
-╭──────────────────────────────────────────────────────────────╮
-│ ● work  active                                               │
-│ Me W <me@work.com>                                           │
-│ github.com/meworks                                           │
-│ folder  C:/code/work/                                        │
-╰──────────────────────────────────────────────────────────────╯
-
-↑/↓ move   enter switch globally   r this repo only   l auto-use for this folder   u unlink folder
-n new   e edit   d delete   t test connection   q quit
-```
+![The gitswitch picker: a personal and a work profile, with the work account active and linked to a folder](docs/picker.svg)
 
 ## What goes wrong with multiple accounts
 

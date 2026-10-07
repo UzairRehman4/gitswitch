@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/uzairrehman4/gitswitch/internal/gitx"
@@ -15,7 +16,18 @@ import (
 	"github.com/uzairrehman4/gitswitch/internal/tui"
 )
 
+// version is set with -ldflags for release binaries. For `go install` builds
+// it falls back to the module version recorded in the binary.
 var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	}
+}
 
 const usage = `gitswitch - switch between multiple GitHub accounts
 

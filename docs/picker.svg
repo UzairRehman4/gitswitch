@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="871" height="468" viewBox="0 0 871 468" role="img" aria-label="gitswitch interactive picker showing a personal and a work profile">
+<rect width="100%" height="100%" rx="10" fill="#111827"/>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="14" fill="#e5e7eb">
+<text x="24" y="39" xml:space="preserve"><tspan fill="#a78bfa" font-weight="bold">gitswitch</tspan><tspan fill="#9ca3af">  pick the account to use</tspan></text>
+<text x="24" y="59" xml:space="preserve"></text>
+<text x="24" y="79" xml:space="preserve"><tspan fill="#9ca3af">global    </tspan><tspan fill="#e5e7eb">Ada Lovelace &lt;ada@acme.dev&gt;</tspan></text>
+<text x="24" y="99" xml:space="preserve"><tspan fill="#9ca3af">here      </tspan><tspan fill="#e5e7eb">Ada Lovelace &lt;ada@acme.dev&gt;</tspan><tspan fill="#9ca3af">  C:\code\acme\api</tspan></text>
+<text x="24" y="119" xml:space="preserve"></text>
+<text x="24" y="139" xml:space="preserve"><tspan fill="#9ca3af">╭────────────────────────────────────────────────────────────────╮</tspan></text>
+<text x="24" y="159" xml:space="preserve"><tspan fill="#9ca3af">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">○</tspan><tspan fill="#e5e7eb"> </tspan><tspan fill="#e5e7eb" font-weight="bold">personal</tspan><tspan fill="#e5e7eb">                                                    </tspan><tspan fill="#9ca3af">│</tspan></text>
+<text x="24" y="179" xml:space="preserve"><tspan fill="#9ca3af">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">Ada Lovelace &lt;ada@gmail.com&gt;</tspan><tspan fill="#e5e7eb">                                  </tspan><tspan fill="#9ca3af">│</tspan></text>
+<text x="24" y="199" xml:space="preserve"><tspan fill="#9ca3af">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">github.com/ada-codes</tspan><tspan fill="#e5e7eb">                                          </tspan><tspan fill="#9ca3af">│</tspan></text>
+<text x="24" y="219" xml:space="preserve"><tspan fill="#9ca3af">╰────────────────────────────────────────────────────────────────╯</tspan></text>
+<text x="24" y="239" xml:space="preserve"><tspan fill="#a78bfa">╭────────────────────────────────────────────────────────────────╮</tspan></text>
+<text x="24" y="259" xml:space="preserve"><tspan fill="#a78bfa">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#49de80">●</tspan><tspan fill="#e5e7eb"> </tspan><tspan fill="#e5e7eb" font-weight="bold">work</tspan><tspan fill="#49de80">  active</tspan><tspan fill="#e5e7eb">                                                </tspan><tspan fill="#a78bfa">│</tspan></text>
+<text x="24" y="279" xml:space="preserve"><tspan fill="#a78bfa">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">Ada Lovelace &lt;ada@acme.dev&gt;</tspan><tspan fill="#e5e7eb">                                   </tspan><tspan fill="#a78bfa">│</tspan></text>
+<text x="24" y="299" xml:space="preserve"><tspan fill="#a78bfa">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">github.com/ada-acme</tspan><tspan fill="#e5e7eb">                                           </tspan><tspan fill="#a78bfa">│</tspan></text>
+<text x="24" y="319" xml:space="preserve"><tspan fill="#a78bfa">│</tspan><tspan fill="#e5e7eb">  </tspan><tspan fill="#9ca3af">folder  C:/code/acme/</tspan><tspan fill="#e5e7eb">                                         </tspan><tspan fill="#a78bfa">│</tspan></text>
+<text x="24" y="339" xml:space="preserve"><tspan fill="#a78bfa">╰────────────────────────────────────────────────────────────────╯</tspan></text>
+<text x="24" y="359" xml:space="preserve"></text>
+<text x="24" y="379" xml:space="preserve"><tspan fill="#49de80">Switched globally to work</tspan></text>
+<text x="24" y="399" xml:space="preserve"></text>
+<text x="24" y="419" xml:space="preserve"><tspan fill="#9ca3af">↑/↓ move   enter switch globally   r this repo only   l auto-use for this folder   u unlink folder</tspan></text>
+<text x="24" y="439" xml:space="preserve"><tspan fill="#9ca3af">n new   e edit   d delete   t test connection   q quit</tspan></text>
+</g>
+</svg>
